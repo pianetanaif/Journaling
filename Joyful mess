@@ -1,0 +1,381 @@
+import React, { useState, useEffect, useRef } from 'react';
+
+const JournalApp = () => {
+  const [selectedTime, setSelectedTime] = useState(5);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [isActive, setIsActive] = useState(false);
+  const [text, setText] = useState('');
+  const [isComplete, setIsComplete] = useState(false);
+  const textareaRef = useRef(null);
+
+  const timeOptions = [5, 10, 15];
+
+  useEffect(() => {
+    let interval = null;
+    
+    if (isActive && timeRemaining > 0) {
+      interval = setInterval(() => {
+        setTimeRemaining(time => time - 1);
+      }, 1000);
+    } else if (timeRemaining === 0) {
+      setIsActive(false);
+      setIsComplete(true);
+    }
+
+    return () => clearInterval(interval);
+  }, [isActive, timeRemaining]);
+
+  const startTimer = () => {
+    setTimeRemaining(selectedTime * 60);
+    setIsActive(true);
+    setIsComplete(false);
+    setTimeout(() => textareaRef.current?.focus(), 100);
+  };
+
+  const resetTimer = () => {
+    setIsActive(false);
+    setTimeRemaining(null);
+    setIsComplete(false);
+    setText('');
+  };
+
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const getProgressPercentage = () => {
+    if (!timeRemaining) return 0;
+    const totalSeconds = selectedTime * 60;
+    return ((totalSeconds - timeRemaining) / totalSeconds) * 100;
+  };
+
+  const downloadAsText = () => {
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `journal-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsPDF = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Journal Entry</title>
+          <style>
+            body { 
+              font-family: Georgia, serif; 
+              line-height: 1.6; 
+              max-width: 600px; 
+              margin: 40px auto; 
+              padding: 20px;
+            }
+            h1 { 
+              font-size: 18px; 
+              color: #666; 
+              border-bottom: 1px solid #eee; 
+              padding-bottom: 10px; 
+            }
+            .content { 
+              white-space: pre-wrap; 
+              font-size: 14px; 
+              line-height: 1.8; 
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Journal Entry - ${new Date().toLocaleDateString()}</h1>
+          <div class="content">${text}</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const emailText = () => {
+    const subject = `Journal Entry - ${new Date().toLocaleDateString()}`;
+    const body = encodeURIComponent(text);
+    const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
+    window.open(mailtoUrl);
+  };
+
+  return (
+    <div style={{
+      fontFamily: 'var(--font-sans)',
+      background: 'var(--color-background)',
+      color: 'var(--color-foreground)',
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '2rem 2rem 1rem 2rem',
+        borderBottom: `1px solid var(--color-border)`,
+        background: 'var(--color-card)',
+      }}>
+        <h1 style={{
+          fontSize: '1.5rem',
+          fontWeight: '300',
+          margin: '0 0 1.5rem 0',
+          color: 'var(--color-muted-foreground)',
+        }}>
+          Journal
+        </h1>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1.5rem',
+          flexWrap: 'wrap',
+        }}>
+          {/* Timer Selection */}
+          {!isActive && timeRemaining === null && !isComplete && (
+            <div style={{
+              display: 'flex',
+              gap: '0.5rem',
+            }}>
+              {timeOptions.map((time) => (
+                <button
+                  key={time}
+                  onClick={() => setSelectedTime(time)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    border: `1px solid ${selectedTime === time ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: selectedTime === time ? 'var(--color-primary)' : 'transparent',
+                    color: selectedTime === time ? 'var(--color-primary-foreground)' : 'var(--color-foreground)',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: selectedTime === time ? '500' : '400',
+                    transition: 'all 0.2s ease',
+                    boxShadow: selectedTime === time ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                  }}
+                >
+                  {time}m
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Timer Display */}
+          {timeRemaining !== null && isActive && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+            }}>
+              <div style={{
+                fontSize: '1.125rem',
+                fontWeight: '500',
+                fontFamily: 'var(--font-mono)',
+                color: timeRemaining <= 60 ? 'var(--color-destructive)' : 'var(--color-foreground)',
+              }}>
+                {formatTime(timeRemaining)}
+              </div>
+              
+              <div style={{
+                width: '100px',
+                height: '4px',
+                background: 'var(--color-muted)',
+                borderRadius: '2px',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  width: `${getProgressPercentage()}%`,
+                  height: '100%',
+                  background: 'var(--color-primary)',
+                  transition: 'width 1s linear',
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* Export Options */}
+          {isComplete && text.trim() && (
+            <div style={{
+              display: 'flex',
+              gap: '0.5rem',
+              alignItems: 'center',
+            }}>
+              <span style={{
+                color: 'var(--color-muted-foreground)',
+                fontSize: '0.875rem',
+                marginRight: '0.5rem',
+              }}>
+                Export:
+              </span>
+              <button
+                onClick={emailText}
+                style={{
+                  padding: '0.5rem 1rem',
+                  border: `1px solid var(--color-border)`,
+                  background: 'transparent',
+                  color: 'var(--color-foreground)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                📧 Email
+              </button>
+              <button
+                onClick={downloadAsText}
+                style={{
+                  padding: '0.5rem 1rem',
+                  border: `1px solid var(--color-border)`,
+                  background: 'transparent',
+                  color: 'var(--color-foreground)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                📄 TXT
+              </button>
+              <button
+                onClick={downloadAsPDF}
+                style={{
+                  padding: '0.5rem 1rem',
+                  border: `1px solid var(--color-border)`,
+                  background: 'transparent',
+                  color: 'var(--color-foreground)',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                📑 PDF
+              </button>
+            </div>
+          )}
+
+          {/* Start/Reset Button */}
+          <button
+            onClick={timeRemaining === null ? startTimer : resetTimer}
+            style={{
+              padding: '0.5rem 1.5rem',
+              border: 'none',
+              background: timeRemaining === null ? 'var(--color-primary)' : 'var(--color-secondary)',
+              color: timeRemaining === null ? 'var(--color-primary-foreground)' : 'var(--color-secondary-foreground)',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {timeRemaining === null ? 'Start' : 'Reset'}
+          </button>
+        </div>
+      </div>
+
+      {/* Main Editor */}
+      <div style={{
+        flex: '1',
+        padding: '2rem 4rem',
+        position: 'relative',
+      }}>
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={isActive 
+            ? "Keep writing... don't stop until time runs out." 
+            : isComplete
+              ? "Session complete! Use the export options above to save your work."
+              : "Start your timer and begin writing. Let your thoughts flow freely without stopping."
+          }
+          disabled={!isActive && !isComplete}
+          style={{
+            width: '100%',
+            height: '100%',
+            minHeight: '400px',
+            border: 'none',
+            outline: 'none',
+            resize: 'none',
+            background: 'transparent',
+            color: 'var(--color-foreground)',
+            fontSize: '1.125rem',
+            lineHeight: '1.7',
+            fontFamily: 'var(--font-serif)',
+            padding: '0',
+          }}
+        />
+
+        {/* Completion message */}
+        {isComplete && (
+          <div style={{
+            position: 'absolute',
+            top: '2rem',
+            right: '4rem',
+            textAlign: 'right',
+            color: 'var(--color-muted-foreground)',
+            fontSize: '0.875rem',
+            background: 'var(--color-card)',
+            padding: '1rem 1.5rem',
+            borderRadius: 'var(--radius-md)',
+            border: `1px solid var(--color-border)`,
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            <div style={{ marginBottom: '0.5rem', fontSize: '1.5rem' }}>✨</div>
+            <div style={{ fontWeight: '500', marginBottom: '0.25rem' }}>Session complete!</div>
+            <div>{text.trim().split(/\s+/).length} words written</div>
+          </div>
+        )}
+
+        {/* Subtle active indicator */}
+        {isActive && (
+          <div style={{
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            right: '0',
+            height: '2px',
+            background: 'linear-gradient(90deg, var(--color-primary), var(--color-secondary))',
+            animation: 'pulse 2s ease-in-out infinite',
+          }} />
+        )}
+      </div>
+
+      {/* Footer with word count */}
+      <div style={{
+        padding: '1rem 2rem',
+        borderTop: `1px solid var(--color-border)`,
+        background: 'var(--color-card)',
+        color: 'var(--color-muted-foreground)',
+        fontSize: '0.875rem',
+        textAlign: 'right',
+      }}>
+        {text.trim() ? `${text.trim().split(/\s+/).length} words` : ''}
+      </div>
+
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.8; }
+        }
+        
+        textarea::placeholder {
+          color: var(--color-muted-foreground);
+          opacity: 0.6;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default JournalApp;
